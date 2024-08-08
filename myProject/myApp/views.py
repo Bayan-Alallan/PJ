@@ -1,28 +1,26 @@
-#from django.http import JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, PasswordResetForm
 from django.contrib import messages
-from .forms import SignupForm, UpdateEmailForm
-from rest_framework.decorators import api_view
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.conf import settings
+
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
-from .serializers import UserSerializer
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.authtoken.views import ObtainAuthToken
-from django.core.mail import send_mail
-from django.conf import settings
+
+from .serializers import UserSerializer
 
 
 
 #signup
+
 #This line declares a new class named SignupView, which inherits from APIView. The APIView class is part of Django REST Framework (DRF) and provides a base class for creating API views. It supports various HTTP methods and allows you to define how your API should respond to requests.
-class SignupView(APIView):
+class signup_view(APIView):
 
 #This line sets the permission_classes attribute to [AllowAny]. This means that this view will allow any user (authenticated or not) to access it
     permission_classes = [AllowAny]
@@ -45,14 +43,25 @@ class SignupView(APIView):
 
 
 #login
+
+#login_view that inherits from ObtainAuthToken. This means it will have all the functionalities of ObtainAuthToken, which is a built-in view for obtaining an authentication token.
 class login_view(ObtainAuthToken):
+
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data, context={'request': request})
+
+#validates the data passed to the serializer. If the data is invalid, it raises an exception (typically a ValidationError), which will automatically return an error response to the client with details about what went wrong.
         serializer.is_valid(raise_exception=True)
+
+#This assumes that the serializer has been set up to authenticate the user and include the authenticated user in its validated data.
         user = serializer.validated_data['user']
+
+#to get an existing authentication token for the authenticated user. If no token exists, it creates a new one. The get_or_create method returns a tuple: the first element is the token object, and the second element (created) is a boolean indicating whether a new token was created or an existing one was retrieved.
         token, created = Token.objects.get_or_create(user=user)
         return Response({'token': token.key,},status=status.HTTP_200_OK)
     
+
+
 
 #Logout
 @api_view(['POST'])
@@ -71,7 +80,10 @@ def logout_view(request):
 
 
 #change_Password
+
 class change_password(APIView):
+
+#The permission_classes attribute specifies that only authenticated users can access this view. This is enforced by the IsAuthenticated permission class. If a user is not authenticated, they will receive a 403 Forbidden response.
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -79,9 +91,12 @@ class change_password(APIView):
         current_password = request.data.get('current_password')
         new_password = request.data.get('new_password')
 
+#The check_password method of the user model is used to verify if the provided current password matches the user's existing password. If it does not match, a response with a 400 Bad Request status is returned, along with an error message.
+
         if not user.check_password(current_password):
             return Response({"error": "Current password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
+#If the current password is correct, the set_password method is called with the new password. This method not only sets the new password but also hashes it (for security) before saving it to the database.
         user.set_password(new_password)
         user.save()
         return Response({"success": "Password updated successfully"}, status=status.HTTP_200_OK)
@@ -99,6 +114,8 @@ class forget_password(APIView):
             send_mail(
                 'Password Reset Request',
                 f'Click the link to reset your password: {reset_link}',
+
+                #Sender's email address: Retrieved from Django settings
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
                 fail_silently=False,
@@ -121,3 +138,5 @@ class update_email(APIView):
         user.email = new_email
         user.save()
         return Response({"success": "Email updated successfully"}, status=status.HTTP_200_OK)
+
+
