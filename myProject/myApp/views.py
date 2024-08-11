@@ -14,6 +14,18 @@ from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 
 from .serializers import UserSerializer
+from rest_framework import viewsets
+
+
+class UserViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        queryset = User.objects.all()
+        serializer = UserSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
 
 
 
@@ -104,27 +116,33 @@ class change_password(APIView):
 
 
 #forget_Password
+import logging
+
+logger = logging.getLogger(__name__)
+
 class forget_password(APIView):
+    # Allow any user (authenticated or not) to access this view
+    permission_classes = [AllowAny]
+    
     def post(self, request):
         email = request.data.get('email')
+        logger.info(f"Received password reset request for email: {email}")
+
         try:
             user = User.objects.get(email=email)
             # Generate password reset link logic here
-            reset_link = "http://gmail.com/reset-password?uid={}".format(user.id)
+            reset_link = "http://localhost:3000/forget_password?uid={}".format(user.id)
             send_mail(
                 'Password Reset Request',
                 f'Click the link to reset your password: {reset_link}',
-
-                #Sender's email address: Retrieved from Django settings
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
                 fail_silently=False,
             )
+
             return Response({"success": "Password reset link sent to your email"}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"error": "User with this email does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-        
-
 
 
 #update_email
