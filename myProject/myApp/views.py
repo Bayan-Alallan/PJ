@@ -1,3 +1,4 @@
+import token
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -11,6 +12,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+
 from rest_framework.authtoken.views import ObtainAuthToken
 
 from .serializers import UserSerializer
@@ -116,22 +121,18 @@ class change_password(APIView):
 
 
 #forget_Password
-import logging
-
-logger = logging.getLogger(__name__)
-
 class forget_password(APIView):
     # Allow any user (authenticated or not) to access this view
     permission_classes = [AllowAny]
     
     def post(self, request):
         email = request.data.get('email')
-        logger.info(f"Received password reset request for email: {email}")
-
         try:
             user = User.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
             # Generate password reset link logic here
-            reset_link = "http://localhost:3000/forget_password?uid={}".format(user.id)
+            reset_link = "http://localhost:3000/reset_password?uid={uid}&token={token}".format(uid=uid, token=token)
             send_mail(
                 'Password Reset Request',
                 f'Click the link to reset your password: {reset_link}',
@@ -143,6 +144,26 @@ class forget_password(APIView):
             return Response({"success": "Password reset link sent to your email"}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"error": "User with this email does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#Reset_Password
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        uidb64 = request.data.get('uid')
+        new_password = request.data.get('password')
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+
+            if default_token_generator.check_token(user, token):
+
+             user.set_password(new_password)
+             user.save()
+            return Response({"success": "Password reset successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "Invalid user ID"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 #update_email

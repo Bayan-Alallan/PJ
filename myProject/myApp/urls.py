@@ -19,6 +19,8 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('change_password/', views.change_password.as_view(), name='change_password'),
     path('forget_password/', views.forget_password.as_view(), name='forget_password'),
+    path('reset_password/', views.ResetPasswordView.as_view(), name='reset_password'),
+
     path('update_email/', views.update_email.as_view(), name='update_email'),
     path('api-token-auth/', ObtainAuthToken.as_view(), name='api_token_auth'),
     path('', include(router.urls)),
